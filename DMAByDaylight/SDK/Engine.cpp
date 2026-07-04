@@ -6,7 +6,17 @@
 Engine::Engine()
 {
     uint64_t base = TargetProcess.GetBaseAddress(ProcessName);
+    if (base == 0) {
+        printf("Engine ctor: Base address invalid\n");
+        return;
+    }
+
     GWorld = TargetProcess.Read<uint64_t>(base + GWorld);
+    if (GWorld == 0) {
+        printf("Engine ctor: Failed to read GWorld\n");
+        return;
+    }
+
     PersistentLevel = TargetProcess.Read<uint64_t>(GWorld + PersistentLevel);
     OwningGameInstance = TargetProcess.Read<uint64_t>(GWorld + OwningGameInstance);
 
@@ -14,15 +24,24 @@ Engine::Engine()
     LocalPlayers = TargetProcess.Read<uint64_t>(localPlayersPtr);
     PlayerController = TargetProcess.Read<uint64_t>(LocalPlayers + PlayerController);
     CameraManager = TargetProcess.Read<uint64_t>(PlayerController + CameraManager);
+
+    printf("Engine initialized - GWorld: 0x%llX\n", GWorld);
 }
 
 void Engine::Cache()
 {
+    if (PersistentLevel == 0) {
+        printf("Cache skipped - PersistentLevel is 0\n");
+        return;
+    }
+
     struct TArray { uint64_t DataPointer; int Count; int Max; };
     TArray actorsArray = TargetProcess.Read<TArray>(PersistentLevel + 0xC0);
 
-    if (actorsArray.DataPointer == 0 || actorsArray.Count <= 0 || actorsArray.Count > 100000)
+    if (actorsArray.DataPointer == 0 || actorsArray.Count <= 0 || actorsArray.Count > 100000) {
+        printf("Invalid actor array (count: %d)\n", actorsArray.Count);
         return;
+    }
 
     std::vector<uint64_t> entityList(actorsArray.Count);
     TargetProcess.Read(actorsArray.DataPointer, entityList.data(), actorsArray.Count * sizeof(uint64_t));
